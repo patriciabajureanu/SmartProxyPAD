@@ -1,0 +1,52 @@
+﻿{
+     "Routes": [
+          {
+
+               "DownstreamPathTemplate": "/{url}",
+               "DownstreamScheme": "http",
+               "DownstreamHostAndPorts": [
+                    {
+                         "Host": "localhost",
+                         "Port": 9001
+                    },
+                    {
+                         "Host": "localhost",
+                         "Port": 9002
+                    }
+
+               ],
+               "UpstreamPathTemplate": "/{url}",
+               "UpstreamHttpMethod": [ "Get" ],
+               "LoadBalancerOptions": {
+                    "Type": "RoundRobin"
+               },
+               "FileCacheOptions": {
+                    "TtlSeconds": 10,
+                    "Region": "movieCacheRegion"
+               }
+
+          },
+          {
+
+               "DownstreamPathTemplate": "/{url}",
+               "DownstreamScheme": "http",
+               "DownstreamHostAndPorts": [
+                    {
+                         "Host": "localhost",
+                         "Port": 9001
+                    },
+                    {
+                         "Host": "localhost",
+                         "Port": 9002
+                    }
+
+               ],
+               "UpstreamPathTemplate": "/{url}",
+               "UpstreamHttpMethod": [ "Put", "Post", "Delete" ],
+               "LoadBalancerOptions": {
+                    "Type": "RoundRobin"
+               }
+          }
+     ]
+
+}
