@@ -15,5 +15,7 @@ namespace Common.Models
           [BsonGuidRepresentation(GuidRepresentation.Standard)]
           public Guid Id { get; set; }
           public DateTime LastChangedAt { get; set; }
+          // tombstone: ștergerea se replică și nu poate fi anulată de un update mai vechi
+          public bool IsDeleted { get; set; }
      }
 }

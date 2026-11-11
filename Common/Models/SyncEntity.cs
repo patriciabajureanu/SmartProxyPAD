@@ -15,6 +15,7 @@ namespace Common.Models
           public string SyncType { get; set; }
           public string ObjectType { get; set; }
           public string Origin { get; set; }
+          public int Attempts { get; set; }
 
      }
 }

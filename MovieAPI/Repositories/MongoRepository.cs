@@ -1,6 +1,5 @@
 ﻿
 using Common.Models;
-using MongoDB.Bson;
 using MongoDB.Driver;
 using MovieAPI.Settings;
 
@@ -18,22 +17,20 @@ namespace MovieAPI.Repositories
                _collection = _db.GetCollection<T>(tableName);
           }
 
-          public void DeleteRecord(Guid id)
+          public List<T> GetAllRecords(int? offset = null, int? limit = null)
           {
-               _collection.DeleteOne(doc => doc.Id == id);
-
-          }
-
-          public List<T> GetAllRecords()
-          {
-               var records = _collection.Find(new BsonDocument()).ToList();
-               return records;
+               return _collection.Find(doc => !doc.IsDeleted).Skip(offset).Limit(limit).ToList();
           }
 
           public T GetRecordById(Guid id)
           {
-               var record = _collection.Find(doc => doc.Id == id).FirstOrDefault();
-               return record;
+               return _collection.Find(doc => doc.Id == id && !doc.IsDeleted).FirstOrDefault();
+          }
+
+          // folosit la sync: vede și înregistrările șterse (tombstone)
+          public T GetRecordByIdRaw(Guid id)
+          {
+               return _collection.Find(doc => doc.Id == id).FirstOrDefault();
           }
 
           public T InsertRecord(T record)

@@ -35,7 +35,8 @@ namespace MovieAPI
                services.AddScoped<IMongoRepository<Movie>, MongoRepository<Movie>>();
                services.AddScoped<ISyncService<Movie>, SyncService<Movie>>();
 
-               services.AddControllers();
+               // clientul alege JSON sau XML prin header-ul Accept
+               services.AddControllers().AddXmlSerializerFormatters();
           }
 
           public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -44,6 +45,12 @@ namespace MovieAPI
                {
                     app.UseDeveloperExceptionPage();
                }
+               // arată ce nod a servit cererea (round robin vizibil prin proxy)
+               app.Use((context, next) =>
+               {
+                    context.Response.Headers["X-Served-By"] = context.Connection.LocalPort.ToString();
+                    return next();
+               });
                app.UseRouting();
                app.UseAuthorization();
                app.UseEndpoints(endpoints =>

@@ -1,52 +1,50 @@
 ﻿{
      "Routes": [
           {
-
-               "DownstreamPathTemplate": "/{url}",
+               "DownstreamPathTemplate": "/api/movie",
                "DownstreamScheme": "http",
                "DownstreamHostAndPorts": [
-                    {
-                         "Host": "localhost",
-                         "Port": 9001
-                    },
-                    {
-                         "Host": "localhost",
-                         "Port": 9002
-                    }
-
+                    { "Host": "localhost", "Port": 9001 },
+                    { "Host": "localhost", "Port": 9002 }
                ],
-               "UpstreamPathTemplate": "/{url}",
+               "UpstreamPathTemplate": "/api/movie",
                "UpstreamHttpMethod": [ "Get" ],
-               "LoadBalancerOptions": {
-                    "Type": "RoundRobin"
-               },
-               "FileCacheOptions": {
-                    "TtlSeconds": 10,
-                    "Region": "movieCacheRegion"
-               }
-
+               "LoadBalancerOptions": { "Type": "RoundRobin" },
+               "CacheOptions": { "TtlSeconds": 10, "Region": "movies", "Header": "Accept" }
           },
           {
-
-               "DownstreamPathTemplate": "/{url}",
+               "DownstreamPathTemplate": "/api/movie/{id}",
                "DownstreamScheme": "http",
                "DownstreamHostAndPorts": [
-                    {
-                         "Host": "localhost",
-                         "Port": 9001
-                    },
-                    {
-                         "Host": "localhost",
-                         "Port": 9002
-                    }
-
+                    { "Host": "localhost", "Port": 9001 },
+                    { "Host": "localhost", "Port": 9002 }
                ],
-               "UpstreamPathTemplate": "/{url}",
-               "UpstreamHttpMethod": [ "Put", "Post", "Delete" ],
-               "LoadBalancerOptions": {
-                    "Type": "RoundRobin"
-               }
+               "UpstreamPathTemplate": "/api/movie/{id}",
+               "UpstreamHttpMethod": [ "Get" ],
+               "LoadBalancerOptions": { "Type": "RoundRobin" },
+               "CacheOptions": { "TtlSeconds": 10, "Region": "movies", "Header": "Accept" }
+          },
+          {
+               "DownstreamPathTemplate": "/api/movie",
+               "DownstreamScheme": "http",
+               "DownstreamHostAndPorts": [
+                    { "Host": "localhost", "Port": 9001 },
+                    { "Host": "localhost", "Port": 9002 }
+               ],
+               "UpstreamPathTemplate": "/api/movie",
+               "UpstreamHttpMethod": [ "Post", "Put" ],
+               "LoadBalancerOptions": { "Type": "RoundRobin" }
+          },
+          {
+               "DownstreamPathTemplate": "/api/movie/{id}",
+               "DownstreamScheme": "http",
+               "DownstreamHostAndPorts": [
+                    { "Host": "localhost", "Port": 9001 },
+                    { "Host": "localhost", "Port": 9002 }
+               ],
+               "UpstreamPathTemplate": "/api/movie/{id}",
+               "UpstreamHttpMethod": [ "Delete" ],
+               "LoadBalancerOptions": { "Type": "RoundRobin" }
           }
      ]
-
 }
