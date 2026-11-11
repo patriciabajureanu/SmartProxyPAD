@@ -19,16 +19,10 @@ namespace Proxy
                {
                     app.UseDeveloperExceptionPage();
                }
-               app.UseRouting();
+               // clientul web (wwwroot/index.html) pe "/", restul cererilor merg prin Ocelot
+               app.UseDefaultFiles();
+               app.UseStaticFiles();
 
-               app.UseEndpoints(endpoints =>
-               {
-                    endpoints.MapGet("/", async context =>
-                    {
-                         await context.Response.WriteAsync("Smart Proxy");
-
-                    });
-               });
                app.UseOcelot().Wait();
           }
      }

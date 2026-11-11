@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Proxy – Filme</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#667085; --line:#e3e6eb; --accent:#2f6fde; --danger:#c43c3c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14171c; --card:#1d2128; --text:#e6e8ec; --muted:#9aa3b2; --line:#2e333c; --accent:#6b9cff; --danger:#ef6b6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:960px; margin:0 auto; padding:24px 16px; display:grid; gap:16px; }
+  h1 { font-size:22px; margin:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+  .muted { color:var(--muted); font-size:13px; }
+  label { display:grid; gap:4px; font-size:13px; color:var(--muted); }
+  input, select, textarea { font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 9px; }
+  form { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; align-items:end; }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:6px; padding:7px 14px; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--danger); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  td.actions { white-space:nowrap; text-align:right; }
+  #served { font-weight:600; color:var(--accent); }
+  pre { margin:0; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-all; font-size:12px; background:var(--bg); padding:10px; border-radius:6px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar">
+    <h1>Filme prin Smart Proxy</h1>
+    <span class="muted">servit de: <span id="served">–</span></span>
+  </div>
+
+  <section class="card">
+    <form id="form">
+      <input type="hidden" id="id">
+      <label>Nume <input id="name" required></label>
+      <label>Actori (separați prin virgulă) <input id="actors"></label>
+      <label>Buget <input id="budget" type="number" min="0" step="any"></label>
+      <label>Descriere <input id="description"></label>
+      <div class="bar">
+        <button class="primary" type="submit" id="save">Adaugă</button>
+        <button type="button" id="cancel" hidden>Renunță</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="bar" style="justify-content:space-between; margin-bottom:8px">
+      <div class="bar">
+        <label>Format <select id="format"><option value="application/json">JSON</option><option value="application/xml">XML</option></select></label>
+        <button type="button" id="refresh">Reîncarcă</button>
+      </div>
+      <span class="muted" id="status" role="status"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nume</th><th>Actori</th><th>Buget</th><th>Descriere</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p class="muted">GET-urile sunt în cache la proxy 10 s, iar replicarea între noduri durează până la 5 s: o modificare poate apărea în listă cu întârziere.</p>
+  </section>
+
+  <section class="card">
+    <div class="muted" style="margin-bottom:6px">Răspuns brut (ultima cerere)</div>
+    <pre id="raw"></pre>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = '/api/movie';
+
+async function call(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Accept': $('format').value, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const text = await res.text();
+  $('served').textContent = res.headers.get('X-Served-By') || '–';
+  $('raw').textContent = `${method} ${url} → ${res.status}\n\n${text}`;
+  if (!res.ok) throw new Error(`${res.status} ${text}`);
+  return text;
+}
+
+function parseMovies(text) {
+  if ($('format').value === 'application/json') return JSON.parse(text);
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const val = (m, tag) => m.getElementsByTagName(tag)[0]?.textContent || '';
+  return [...doc.getElementsByTagName('Movie')].map(m => ({
+    id: val(m, 'Id'), name: val(m, 'Name'), budget: val(m, 'Budget'), description: val(m, 'Description'),
+    actors: [...m.querySelectorAll('Actors > string')].map(s => s.textContent)
+  }));
+}
+
+function cell(text) { const td = document.createElement('td'); td.textContent = text ?? ''; return td; }
+
+function button(label, cls, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.onclick = onClick;
+  return b;
+}
+
+async function load() {
+  try {
+    const movies = parseMovies(await call('GET', API));
+    $('rows').replaceChildren(...movies.map(m => {
+      const tr = document.createElement('tr');
+      const actions = document.createElement('td');
+      actions.className = 'actions';
+      actions.append(button('Editează', '', () => edit(m)), ' ', button('Șterge', 'danger', () => remove(m)));
+      tr.append(cell(m.name), cell((m.actors || []).join(', ')), cell(m.budget), cell(m.description), actions);
+      return tr;
+    }));
+    $('status').textContent = `${movies.length} filme`;
+  } catch (e) { $('status').textContent = 'Eroare: ' + e.message; }
+}
+
+function edit(m) {
+  $('id').value = m.id; $('name').value = m.name; $('actors').value = (m.actors || []).join(', ');
+  $('budget').value = m.budget ?? ''; $('description').value = m.description ?? '';
+  $('save').textContent = 'Salvează'; $('cancel').hidden = false; $('name').focus();
+}
+
+function resetForm() { $('form').reset(); $('id').value = ''; $('save').textContent = 'Adaugă'; $('cancel').hidden = true; }
+
+async function remove(m) {
+  if (!confirm(`Ștergi „${m.name}”?`)) return;
+  try { await call('DELETE', `${API}/${m.id}`); $('status').textContent = 'Șters'; }
+  catch (e) { $('status').textContent = 'Eroare: ' + e.message; }
+}
+
+$('form').onsubmit = async e => {
+  e.preventDefault();
+  const movie = {
+    name: $('name').value.trim(),
+    actors: $('actors').value.split(',').map(s => s.trim()).filter(Boolean),
+    budget: $('budget').value === '' ? null : Number($('budget').value),
+    description: $('description').value.trim() || null
+  };
+  try {
+    if ($('id').value) await call('PUT', API, { id: $('id').value, ...movie });
+    else await call('POST', API, movie);
+    $('status').textContent = 'Salvat';
+    resetForm();
+  } catch (err) { $('status').textContent = 'Eroare: ' + err.message; }
+};
+$('cancel').onclick = resetForm;
+$('refresh').onclick = load;
+$('format').onchange = load;
+load();
+</script>
+</body>
+</html>
