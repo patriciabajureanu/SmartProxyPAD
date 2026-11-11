@@ -1,0 +1,152 @@
+{
+  "info": {
+    "name": "SmartProxyPAD - Lab 2",
+    "description": "Scenariile de demonstratie. Porniti mongod, SyncNode, node1, node2 si Proxy, apoi rulati colectia in ordine (Run collection). Cererile care asteapta replicarea fac o pauza de 6 s.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "proxy", "value": "http://localhost:9000" },
+    { "key": "node1", "value": "http://localhost:9001" },
+    { "key": "node2", "value": "http://localhost:9002" }
+  ],
+  "item": [
+    {
+      "name": "1. Replicare: POST direct pe node1",
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200', () => pm.response.to.have.status(200));",
+        "pm.collectionVariables.set('movie', JSON.stringify(pm.response.json()));",
+        "pm.collectionVariables.set('id', pm.response.json().id);"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{ \"name\": \"Inception\", \"actors\": [\"DiCaprio\", \"Page\"], \"budget\": 160, \"description\": \"replicare\" }" },
+        "url": "{{node1}}/api/movie"
+      }
+    },
+    {
+      "name": "2. Replicare: GET direct pe node2 dupa 6 s",
+      "event": [
+        { "listen": "prerequest", "script": { "exec": ["setTimeout(() => {}, 6000);"] } },
+        { "listen": "test", "script": { "exec": [
+          "pm.test('filmul exista si in movie2', () => pm.response.to.have.status(200));",
+          "pm.test('acelasi nume', () => pm.expect(pm.response.json().name).to.eql('Inception'));"
+        ] } }
+      ],
+      "request": { "method": "GET", "url": "{{node2}}/api/movie/{{id}}" }
+    },
+    {
+      "name": "3. Round robin: POST prin proxy (a)",
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200', () => pm.response.to.have.status(200));",
+        "pm.collectionVariables.set('servedA', pm.response.headers.get('X-Served-By'));"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{ \"name\": \"RR a\", \"actors\": [] }" },
+        "url": "{{proxy}}/api/movie"
+      }
+    },
+    {
+      "name": "4. Round robin: POST prin proxy (b) - alt nod",
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200', () => pm.response.to.have.status(200));",
+        "pm.test('X-Served-By alterneaza', () => pm.expect(pm.response.headers.get('X-Served-By')).to.not.eql(pm.collectionVariables.get('servedA')));"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{ \"name\": \"RR b\", \"actors\": [] }" },
+        "url": "{{proxy}}/api/movie"
+      }
+    },
+    {
+      "name": "5. Cache: GET prin proxy (prima cerere)",
+      "event": [
+        { "listen": "prerequest", "script": { "exec": ["pm.collectionVariables.set('cacheKey', Date.now());"] } },
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200', () => pm.response.to.have.status(200));",
+          "pm.collectionVariables.set('servedCache', pm.response.headers.get('X-Served-By'));"
+        ] } }
+      ],
+      "request": { "method": "GET", "header": [{ "key": "Accept", "value": "application/json" }], "url": "{{proxy}}/api/movie?limit=5&k={{cacheKey}}" }
+    },
+    {
+      "name": "6. Cache: acelasi GET - vine din cache (acelasi nod, fara round robin)",
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('raspuns din cache', () => pm.expect(pm.response.headers.get('X-Served-By')).to.eql(pm.collectionVariables.get('servedCache')));"
+      ] } }],
+      "request": { "method": "GET", "header": [{ "key": "Accept", "value": "application/json" }], "url": "{{proxy}}/api/movie?limit=5&k={{cacheKey}}" }
+    },
+    {
+      "name": "7. XML: acelasi GET cu Accept application/xml",
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('200', () => pm.response.to.have.status(200));",
+        "pm.test('Content-Type XML (cheie de cache separata)', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/xml'));",
+        "pm.test('corp XML', () => pm.expect(pm.response.text()).to.include('<ArrayOfMovie'));"
+      ] } }],
+      "request": { "method": "GET", "header": [{ "key": "Accept", "value": "application/xml" }], "url": "{{proxy}}/api/movie?limit=5&k={{cacheKey}}" }
+    },
+    {
+      "name": "8. Paginare: offset=0&limit=2",
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('cel mult 2 filme', () => pm.expect(pm.response.json().length).to.be.at.most(2));"
+      ] } }],
+      "request": { "method": "GET", "url": "{{proxy}}/api/movie?offset=0&limit=2" }
+    },
+    {
+      "name": "9. Paginare invalida: offset=-1 -> 400",
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('400', () => pm.response.to.have.status(400));"] } }],
+      "request": { "method": "GET", "url": "{{node1}}/api/movie?offset=-1" }
+    },
+    {
+      "name": "10. Id inexistent -> 404",
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('404', () => pm.response.to.have.status(404));"] } }],
+      "request": { "method": "GET", "url": "{{proxy}}/api/movie/00000000-0000-0000-0000-000000000001" }
+    },
+    {
+      "name": "11. Endpoint-ul intern de sync nu e expus prin proxy -> 404",
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('404', () => pm.response.to.have.status(404));"] } }],
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": "{{proxy}}/api/sync/movie"
+      }
+    },
+    {
+      "name": "12. Conflict: DELETE pe node1",
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('200', () => pm.response.to.have.status(200));"] } }],
+      "request": { "method": "DELETE", "url": "{{node1}}/api/movie/{{id}}" }
+    },
+    {
+      "name": "13. Conflict: update mai vechi ajunge pe node2 (dupa 6 s)",
+      "event": [
+        { "listen": "prerequest", "script": { "exec": [
+          "setTimeout(() => {}, 6000);",
+          "const m = JSON.parse(pm.collectionVariables.get('movie'));",
+          "m.name = 'Update vechi'; m.lastChangedAt = '2020-01-01T00:00:00Z';",
+          "pm.collectionVariables.set('oldUpdate', JSON.stringify(m));"
+        ] } },
+        { "listen": "test", "script": { "exec": ["pm.test('200 (acceptat, dar ignorat)', () => pm.response.to.have.status(200));"] } }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{oldUpdate}}" },
+        "url": "{{node2}}/api/sync/movie"
+      }
+    },
+    {
+      "name": "14. Conflict: filmul ramane sters pe node2",
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('404 - delete-ul mai nou a castigat', () => pm.response.to.have.status(404));"] } }],
+      "request": { "method": "GET", "url": "{{node2}}/api/movie/{{id}}" }
+    },
+    {
+      "name": "15. Conflict: filmul ramane sters pe node1",
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('404', () => pm.response.to.have.status(404));"] } }],
+      "request": { "method": "GET", "url": "{{node1}}/api/movie/{{id}}" }
+    }
+  ]
+}
