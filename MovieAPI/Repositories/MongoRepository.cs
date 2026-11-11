@@ -19,18 +19,12 @@ namespace MovieAPI.Repositories
 
           public List<T> GetAllRecords(int? offset = null, int? limit = null)
           {
-               return _collection.Find(doc => !doc.IsDeleted).Skip(offset).Limit(limit).ToList();
+               return _collection.Find(doc => !doc.IsDeleted).SortBy(doc => doc.Id).Skip(offset).Limit(limit).ToList();
           }
 
           public T GetRecordById(Guid id)
           {
                return _collection.Find(doc => doc.Id == id && !doc.IsDeleted).FirstOrDefault();
-          }
-
-          // folosit la sync: vede și înregistrările șterse (tombstone)
-          public T GetRecordByIdRaw(Guid id)
-          {
-               return _collection.Find(doc => doc.Id == id).FirstOrDefault();
           }
 
           public T InsertRecord(T record)
@@ -39,10 +33,17 @@ namespace MovieAPI.Repositories
                return record;
           }
 
+          // atomic: scrie doar dacă versiunea din bază e mai veche; altfel upsert-ul dă DuplicateKey și e ignorat
           public void UpsertRecord(T record)
           {
-               _collection.ReplaceOne(doc => doc.Id == record.Id, record,
-                    new ReplaceOptions() { IsUpsert = true });
+               try
+               {
+                    _collection.ReplaceOne(doc => doc.Id == record.Id && doc.LastChangedAt < record.LastChangedAt, record,
+                         new ReplaceOptions() { IsUpsert = true });
+               }
+               catch (MongoWriteException e) when (e.WriteError.Category == ServerErrorCategory.DuplicateKey)
+               {
+               }
           }
      }
 }

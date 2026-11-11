@@ -42,6 +42,7 @@ namespace MovieAPI.Controllers
           [HttpPost]
           public IActionResult Create(Movie movie)
           {
+               movie.Id = Guid.Empty; // id-ul îl generează serverul; un id existent ar da duplicate key (500)
                movie.LastChangedAt = DateTime.UtcNow;
                movie.IsDeleted = false;
 
@@ -70,26 +71,15 @@ namespace MovieAPI.Controllers
           [HttpPut("/api/sync/movie")]
           public IActionResult UpsertSync(Movie movie)
           {
-               ApplyIfNewer(movie);
+               _movieRepository.UpsertRecord(movie); // se aplică doar dacă e mai nou (delete vs update)
                return Ok();
           }
           [HttpDelete("/api/sync/movie")]
           public IActionResult DeleteSync(Movie movie)
           {
                movie.IsDeleted = true;
-               ApplyIfNewer(movie);
+               _movieRepository.UpsertRecord(movie);
                return Ok();
-          }
-
-          // conflict delete vs update: câștigă modificarea cu LastChangedAt mai nou
-          private void ApplyIfNewer(Movie movie)
-          {
-               var existingMovie = _movieRepository.GetRecordByIdRaw(movie.Id);
-
-               if (existingMovie == null || movie.LastChangedAt > existingMovie.LastChangedAt)
-               {
-                    _movieRepository.UpsertRecord(movie);
-               }
           }
 
           [HttpDelete ("{id}")]

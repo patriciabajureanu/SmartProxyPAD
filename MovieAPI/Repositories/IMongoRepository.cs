@@ -7,7 +7,6 @@ namespace MovieAPI.Repositories
           List<T> GetAllRecords(int? offset = null, int? limit = null);
           public T InsertRecord(T record);
           T GetRecordById(Guid id);
-          T GetRecordByIdRaw(Guid id);
           void UpsertRecord(T record);
 
      }

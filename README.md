@@ -55,18 +55,19 @@ npx newman run SmartProxyPAD.postman_collection.json
 
 Scenarii manuale (necesită oprirea unui proces):
 
-- **node2 oprit**: POST pe node1, apoi node2 repornit. SyncNode loghează eșecul, reîncearcă la fiecare 5 s, iar node2 primește filmul după repornire.
+- **node2 oprit**: POST pe node1, apoi node2 repornit. SyncNode loghează eșecul, reîncearcă la fiecare 5 s, iar node2 primește filmul dacă repornește în cel mult ~50 s (10 încercări).
 - **SyncNode oprit**: POST prin proxy întoarce tot 200; nodul loghează `SyncNode unavailable`, iar filmul nu se replică.
 
 ## Decizii
 
-- **Ștergere = tombstone** (`IsDeleted = true`): ștergerea se replică precum un update, iar la conflict câștigă modificarea cu `LastChangedAt` mai nou. Un update vechi nu poate readuce un film șters.
+- **Ștergere = tombstone** (`IsDeleted = true`): ștergerea se replică precum un update, iar la conflict câștigă modificarea cu `LastChangedAt` mai nou. Un update vechi nu poate readuce un film șters: comparația de timestamp face parte din filtrul scrierii în MongoDB, deci e atomică.
 - **SyncNode fără pierderi**: dacă un receptor nu răspunde sau întoarce eroare, modificarea revine în coadă, cu cel mult 10 încercări.
 - **Concurență**: Kestrel servește cererile în paralel, iar coada din SyncNode e un `ConcurrentDictionary` cu `AddOrUpdate` atomic.
 
 ## Limite
 
 - SyncNode e single point of failure, iar coada lui e în memorie: un restart pierde modificările încă nesincronizate.
+- Un nod oprit mai mult de ~50 s (10 încercări × 5 s) pierde modificările din acel interval.
 - Conflictele se rezolvă după timestamp, deci rezultatul depinde de ceasurile serverelor; pe o singură mașină e corect.
 - Cache-ul poate întoarce date vechi cu până la 10 s după o scriere.
 - `IsDeleted` apare în răspunsuri, pentru că același model e folosit și la sync.
